@@ -1,47 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react"; // 【修改】引入 useEffect
 import { useParams } from "next/navigation";
-import Link from "next/link"; // 【新增】用於跳轉推薦產品
+import Link from "next/link";
 import Navbar from "../../../components/Navbar";
 import Footer from "../../../components/Footer";
 import MiniCart from "../../../components/MiniCart";
 import { useCart } from "../../../components/CartContext";
-
-const productDatabase: Record<string, any> = {
-  "1": {
-    id: 1,
-    name: "Kira Quilted Satchel",
-    price: "RM 1,250",
-    description: "A triumph of modern minimalism. The Kira Satchel is crafted from buttery-soft quilted leather, featuring our signature hardware. Perfect for transitioning from day to evening with effortless grace.",
-    images: ["https://images.unsplash.com/photo-1584916201218-f4242ceb4809?q=80&w=1200&auto=format&fit=crop", "https://images.unsplash.com/photo-1591561954557-26941169b49e?q=80&w=1200&auto=format&fit=crop"],
-    colors: [{ name: "Mocha Black", hex: "#4A3F35" }, { name: "Pearl White", hex: "#FCFAF8" }, { name: "Burgundy", hex: "#8B0000" }],
-  },
-  "2": {
-    id: 2,
-    name: "Fleming Soft Tote",
-    price: "RM 1,580",
-    description: "Spacious and incredibly chic. The Fleming Tote is your perfect daily companion, featuring intricate stitching and a spacious interior that easily fits your laptop and essentials.",
-    images: ["https://images.unsplash.com/photo-1591561954557-26941169b49e?q=80&w=1200&auto=format&fit=crop", "https://images.unsplash.com/photo-1584916201218-f4242ceb4809?q=80&w=1200&auto=format&fit=crop"],
-    colors: [{ name: "Mocha Black", hex: "#4A3F35" }, { name: "Camel", hex: "#D2B48C" }],
-  },
-  "3": {
-    id: 3,
-    name: "Eleanor Crossbody",
-    price: "RM 1,100",
-    description: "Structured and elegant. The Eleanor Crossbody features clean lines and a bold sculptural hardware logo. The twisted rope chain adds a touch of vintage glamour.",
-    images: ["https://images.unsplash.com/photo-1548036328-c9fa89d128fa?q=80&w=1200&auto=format&fit=crop"],
-    colors: [{ name: "Mocha Black", hex: "#4A3F35" }],
-  },
-  "4": {
-    id: 4,
-    name: "Robinson Chain Wallet",
-    price: "RM 850",
-    description: "The ultimate evening essential. Compact, practical, and undeniably luxurious. Keep your cards, keys, and lipstick organized in this scratch-resistant leather masterpiece.",
-    images: ["https://images.unsplash.com/photo-1590874103328-eac38a683ce7?q=80&w=1200&auto=format&fit=crop"],
-    colors: [{ name: "Rose Pink", hex: "#FFC0CB" }, { name: "Mocha Black", hex: "#4A3F35" }, { name: "Pearl White", hex: "#FCFAF8" }],
-  }
-};
+import { supabase } from "@/lib/supabase"; // 【修改】引入 supabase 客户端
 
 const commonDetails = [
   "100% Premium Leather",
@@ -53,57 +19,91 @@ const commonDetails = [
 export default function ProductDetail() {
   const params = useParams();
   const productId = params?.id as string;
-  const productDetails = productDatabase[productId] || productDatabase["1"];
 
-  const [selectedColor, setSelectedColor] = useState(productDetails.colors[0]);
-  const [isCartOpen, setIsCartOpen] = useState(false);
+  // 【新增状态】
+  const [productDetails, setProductDetails] = useState<any>(null);
+  const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedColor, setSelectedColor] = useState<any>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   const { addToCart } = useCart();
 
+  // 【核心逻辑】从 Supabase 动态抓取商品详情
+  useEffect(() => {
+    async function fetchPageData() {
+      try {
+        // 1. 获取当前商品详情
+        const { data: currentProduct, error: pError } = await supabase
+          .from('products')
+          .select('*')
+          .eq('id', productId)
+          .single();
+
+        if (pError) throw pError;
+
+        // 2. 获取推荐商品（排除当前商品）
+        const { data: related, error: rError } = await supabase
+          .from('products')
+          .select('*')
+          .neq('id', productId)
+          .limit(3);
+
+        if (currentProduct) {
+          setProductDetails(currentProduct);
+          // 这里的 colors 假设在数据库里存的是 JSONB 数组 ['#4A3F35', ...]
+          // 如果数据库里存的是对象数组，逻辑保持不变
+          setSelectedColor(currentProduct.colors ? currentProduct.colors[0] : null);
+        }
+        if (related) setRelatedProducts(related);
+      } catch (err) {
+        console.error("Error fetching detail data:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchPageData();
+  }, [productId]);
+
   const handleAddToCart = () => {
+    if (!productDetails) return;
     addToCart({
       id: productDetails.id,
       name: productDetails.name,
       price: productDetails.price,
-      img: productDetails.images[activeImageIndex],
+      img: productDetails.img, // 注意数据库列名是 img
     });
     setIsCartOpen(true);
   };
 
-  // 【新增】獲取推薦產品（過濾掉當前產品）
-  const relatedProducts = Object.values(productDatabase)
-    .filter((p: any) => p.id !== productDetails.id)
-    .slice(0, 3);
+  // 加载中状态显示
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-brand-white flex items-center justify-center text-xs tracking-widest uppercase">
+        Loading Luxury...
+      </div>
+    );
+  }
+
+  // 如果找不到产品
+  if (!productDetails) {
+    return <div className="min-h-screen flex items-center justify-center">Product not found.</div>;
+  }
 
   return (
     <div className="min-h-screen bg-brand-white flex flex-col">
       <Navbar openCart={() => setIsCartOpen(true)} />
 
       <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 w-full">
-        {/* 產品主區塊 */}
         <div className="flex flex-col md:flex-row gap-16 lg:gap-24 mb-32">
           
           <div className="w-full md:w-1/2 flex flex-col md:flex-row gap-4">
-            <div className="hidden md:flex flex-col gap-4 w-20 order-1">
-              {productDetails.images.map((img: string, index: number) => (
-                <button
-                  key={index}
-                  onClick={() => setActiveImageIndex(index)}
-                  className={`aspect-[4/5] bg-brand-gray overflow-hidden border transition-all duration-300 ${
-                    activeImageIndex === index ? "border-brand-black" : "border-transparent opacity-60 hover:opacity-100"
-                  }`}
-                >
-                  <img src={img} className="w-full h-full object-cover" alt="thumbnail" />
-                </button>
-              ))}
-            </div>
-
+            {/* 这里如果有多个图片，数据库可以存一个图片数组，目前假设存的是单图 */}
             <div className="flex-1 order-2">
               <div className="aspect-[4/5] bg-brand-gray overflow-hidden relative group">
                 <img 
-                  key={activeImageIndex}
-                  src={productDetails.images[activeImageIndex]} 
+                  src={productDetails.img} 
                   alt={productDetails.name}
                   className="w-full h-full object-cover object-center hover:scale-105 transition-transform duration-[2s] ease-out animate-in fade-in duration-700"
                 />
@@ -120,33 +120,30 @@ export default function ProductDetail() {
               {productDetails.name}
             </h1>
             <p className="text-lg text-brand-black/70 tracking-wider mb-8">
-              {productDetails.price}
+              RM {productDetails.price}
             </p>
 
             <p className="text-sm text-brand-black/60 leading-relaxed tracking-wide mb-10">
-              {productDetails.description}
+              {productDetails.description || "No description available."}
             </p>
 
-            <div className="mb-10">
-              <span className="text-xs uppercase tracking-[0.2em] text-brand-black/60 block mb-4">
-                Color: {selectedColor.name}
-              </span>
-              <div className="flex space-x-4">
-                {productDetails.colors.map((color: any) => (
-                  <button
-                    key={color.name}
-                    onClick={() => setSelectedColor(color)}
-                    className={`w-8 h-8 rounded-full border-2 transition-all duration-300 ease-out hover:scale-110 active:scale-95 ${
-                      selectedColor.name === color.name 
-                        ? "border-brand-black scale-110" 
-                        : "border-transparent hover:border-brand-line shadow-sm"
-                    }`}
-                    style={{ backgroundColor: color.hex }}
-                    aria-label={`Select ${color.name}`}
-                  />
-                ))}
+            {/* 颜色选择逻辑 */}
+            {productDetails.colors && (
+              <div className="mb-10">
+                <span className="text-xs uppercase tracking-[0.2em] text-brand-black/60 block mb-4">
+                  Available Colors
+                </span>
+                <div className="flex space-x-4">
+                  {productDetails.colors.map((colorHex: string, index: number) => (
+                    <div
+                      key={index}
+                      className="w-8 h-8 rounded-full border border-brand-line shadow-sm"
+                      style={{ backgroundColor: colorHex }}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <button 
               onClick={handleAddToCart}
@@ -174,7 +171,7 @@ export default function ProductDetail() {
           </div>
         </div>
 
-        {/* 【新增】您可能也會喜歡區塊 */}
+        {/* 推薦區塊 */}
         <section className="border-t border-brand-line pt-20">
           <h2 className="text-center text-xs uppercase tracking-[0.3em] text-brand-black mb-16">
             You May Also Like
@@ -184,14 +181,14 @@ export default function ProductDetail() {
               <Link key={product.id} href={`/product/${product.id}`} className="group">
                 <div className="aspect-[4/5] bg-brand-gray overflow-hidden mb-6">
                   <img 
-                    src={product.images[0]} 
+                    src={product.img} 
                     alt={product.name}
                     className="w-full h-full object-cover transition-transform duration-[1.5s] group-hover:scale-105"
                   />
                 </div>
                 <div className="text-center">
                   <h3 className="text-xs uppercase tracking-widest text-brand-black mb-2">{product.name}</h3>
-                  <p className="text-xs text-brand-black/50">{product.price}</p>
+                  <p className="text-xs text-brand-black/50">RM {product.price}</p>
                 </div>
               </Link>
             ))}
@@ -200,11 +197,7 @@ export default function ProductDetail() {
       </main>
 
       <Footer />
-
-      <MiniCart 
-        isOpen={isCartOpen} 
-        onClose={() => setIsCartOpen(false)} 
-      />
+      <MiniCart isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
     </div>
   );
 }
