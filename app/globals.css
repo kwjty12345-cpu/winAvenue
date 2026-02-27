@@ -1,26 +1,50 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* 核心色调改为：奶油、燕麦、摩卡深咖的暖色系 */
+  --color-brand-black: #4A3F35; /* 摩卡深褐色，替代刺眼的纯黑，高级且温柔 */
+  --color-brand-white: #FCFAF8; /* 奶油珍珠白，替代冷调纯白，自带温馨感 */
+  --color-brand-gray: #F4EFEA;  /* 温暖的燕麦奶茶色，做背景极度舒适 */
+  --color-brand-line: #EAE3DC;  /* 暖调的浅褐色线条，不突兀 */
+
+  /* 保持宽字母间距，留住大气感 */
+  --tracking-widest: 0.15em;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* --- 全局按钮悬浮动效升级 --- */
+
+/* 1. 基础平滑过渡：应用于全站所有按钮、链接 */
+button, 
+a.inline-block, 
+.btn-hover-effect {
+  transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1) !important;
+  position: relative;
+  overflow: hidden;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* 2. 悬浮状态：轻微浮起与柔和阴影 */
+button:hover, 
+a.inline-block:hover {
+  transform: translateY(-2px); 
+  filter: brightness(1.05); /* 轻轻亮起，不刺眼 */
+  box-shadow: 0 10px 25px rgba(74, 63, 53, 0.12); /* 使用你的 brand-black 色调阴影 */
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* 3. 点击反馈：模拟真实物理按压 */
+button:active, 
+a.inline-block:active {
+  transform: translateY(0) scale(0.97); /* 按下时微缩 */
+  transition: all 0.1s ease !important; /* 点击反馈速度加快 */
+}
+
+/* 4. 图片容器悬浮放大：让商品展示更高级 */
+.group:hover img {
+  transform: scale(1.05);
+  transition: transform 1.5s cubic-bezier(0.25, 1, 0.5, 1) !important;
+}
+
+/* 5. 颜色圆点专属效果 */
+div.rounded-full.border:hover {
+  transform: scale(1.25);
+  box-shadow: 0 4px 10px rgba(74, 63, 53, 0.1);
 }
