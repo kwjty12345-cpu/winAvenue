@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react"; // 【修改】引入 useEffect
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import Navbar from "../../../components/Navbar";
-import Footer from "../../../components/Footer";
-import MiniCart from "../../../components/MiniCart";
-import { useCart } from "../../../components/CartContext";
-import { supabase } from "@/lib/supabase"; // 【修改】引入 supabase 客户端
+// 【架构师注】使用绝对路径别名，抛弃 ../../../ 的丑陋写法
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import MiniCart from "@/components/MiniCart";
+// 【架构师注】引入全新的 Zustand 引擎！
+import { useCartStore } from "@/src/stores/useCartStore"; 
+import { supabase } from "@/lib/supabase";
 
 const commonDetails = [
   "100% Premium Leather",
@@ -20,22 +22,18 @@ export default function ProductDetail() {
   const params = useParams();
   const productId = params?.id as string;
 
-  // 【新增状态】
   const [productDetails, setProductDetails] = useState<any>(null);
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedColor, setSelectedColor] = useState<any>(null);
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  const { addToCart } = useCart();
+  // 【架构师注】从 Zustand 精准提取 addToCart 方法
+  const addToCart = useCartStore((state) => state.addToCart);
 
-  // 【核心逻辑】从 Supabase 动态抓取商品详情
-  // 【核心逻辑】从 Supabase 动态抓取商品详情
   useEffect(() => {
     async function fetchPageData() {
       try {
-        // 1. 获取当前商品详情 (⚠️ 这里改成大写 Products)
         const { data: currentProduct, error: pError } = await supabase
           .from('Products') 
           .select('*')
@@ -44,7 +42,6 @@ export default function ProductDetail() {
 
         if (pError) throw pError;
 
-        // 2. 获取推荐商品（排除当前商品） (⚠️ 这里改成大写 Products)
         const { data: related, error: rError } = await supabase
           .from('Products') 
           .select('*')
@@ -53,7 +50,6 @@ export default function ProductDetail() {
 
         if (currentProduct) {
           setProductDetails(currentProduct);
-          // 这里的 colors 假设在数据库里存的是 JSONB 数组 ['#4A3F35', ...]
           setSelectedColor(currentProduct.colors ? currentProduct.colors[0] : null);
         }
         if (related) setRelatedProducts(related);
@@ -72,12 +68,13 @@ export default function ProductDetail() {
       id: productDetails.id,
       name: productDetails.name,
       price: productDetails.price,
-      img: productDetails.img, // 注意数据库列名是 img
+      img: productDetails.img,
+      // 如果你想让购物车记录颜色，可以在这里传进去（需要确保 Zustand 的 CartItem 类型支持 color 字段）
+      // color: selectedColor 
     });
     setIsCartOpen(true);
   };
 
-  // 加载中状态显示
   if (isLoading) {
     return (
       <div className="min-h-screen bg-brand-white flex items-center justify-center text-xs tracking-widest uppercase">
@@ -86,7 +83,6 @@ export default function ProductDetail() {
     );
   }
 
-  // 如果找不到产品
   if (!productDetails) {
     return <div className="min-h-screen flex items-center justify-center">Product not found.</div>;
   }
@@ -99,7 +95,6 @@ export default function ProductDetail() {
         <div className="flex flex-col md:flex-row gap-16 lg:gap-24 mb-32">
           
           <div className="w-full md:w-1/2 flex flex-col md:flex-row gap-4">
-            {/* 这里如果有多个图片，数据库可以存一个图片数组，目前假设存的是单图 */}
             <div className="flex-1 order-2">
               <div className="aspect-[4/5] bg-brand-gray overflow-hidden relative group">
                 <img 
@@ -127,18 +122,24 @@ export default function ProductDetail() {
               {productDetails.description || "No description available."}
             </p>
 
-            {/* 颜色选择逻辑 */}
-            {productDetails.colors && (
+            {/* 【架构师注】优化了颜色选择的交互，加入了点击事件和物理阻尼感反馈 */}
+            {productDetails.colors && productDetails.colors.length > 0 && (
               <div className="mb-10">
                 <span className="text-xs uppercase tracking-[0.2em] text-brand-black/60 block mb-4">
                   Available Colors
                 </span>
                 <div className="flex space-x-4">
                   {productDetails.colors.map((colorHex: string, index: number) => (
-                    <div
+                    <button
                       key={index}
-                      className="w-8 h-8 rounded-full border border-brand-line shadow-sm"
+                      onClick={() => setSelectedColor(colorHex)}
+                      className={`w-8 h-8 rounded-full border transition-all duration-300 ${
+                        selectedColor === colorHex 
+                          ? 'border-brand-black scale-110 shadow-[0_0_10px_rgba(0,0,0,0.2)]' 
+                          : 'border-brand-line hover:scale-105'
+                      }`}
                       style={{ backgroundColor: colorHex }}
+                      aria-label={`Select color ${colorHex}`}
                     />
                   ))}
                 </div>
@@ -171,7 +172,7 @@ export default function ProductDetail() {
           </div>
         </div>
 
-        {/* 推薦區塊 */}
+        {/* 推荐区块 */}
         <section className="border-t border-brand-line pt-20">
           <h2 className="text-center text-xs uppercase tracking-[0.3em] text-brand-black mb-16">
             You May Also Like

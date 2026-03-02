@@ -1,5 +1,8 @@
+"use client";
+
 import Link from 'next/link';
-import { useCart } from "./CartContext"; // 添加这一行
+// 【架构师注】统一使用别名路径，并确保引用的是 Zustand Store
+import { useCartStore } from "@/src/stores/useCartStore"; 
 
 export default function QuickView({ 
   isOpen, 
@@ -10,19 +13,23 @@ export default function QuickView({
   onClose: () => void;
   product: any;
 }) {
-  const { addToCart } = useCart(); // 添加这一行
+  // 【关键修复】从 Zustand 提取 addToCart，不再调用已删除的 useCart()
+  const addToCart = useCartStore((state) => state.addToCart);
 
   if (!product) return null;
 
-  // 添加加购处理函数
   const handleAddToCart = () => {
-    addToCart(product);
-    onClose(); // 加购后关闭预览窗口
+    // 【架构师注】确保传入的数据包含 store 需要的 img 字段
+    addToCart({
+      ...product,
+      img: product.imageUrl || product.img // 兼容不同组件传入的字段名
+    });
+    onClose(); 
   };
 
   return (
     <>
-      {/* 黑色半透明背景遮罩 */}
+      {/* 黑色半透明背景遮罩 - 保持你的玻璃拟物化设计 */}
       <div 
         className={`fixed inset-0 bg-brand-black/20 backdrop-blur-sm z-[60] transition-all duration-500 ${
           isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
@@ -43,7 +50,11 @@ export default function QuickView({
         <div className="flex-grow overflow-y-auto px-12 pb-12">
           {/* 大图展示 */}
           <div className="aspect-[4/5] bg-brand-gray mb-8 overflow-hidden">
-            <img src={product.img} alt={product.name} className="w-full h-full object-cover" />
+            <img 
+              src={product.imageUrl || product.img} 
+              alt={product.name} 
+              className="w-full h-full object-cover" 
+            />
           </div>
 
           {/* 简短信息 */}
@@ -60,7 +71,6 @@ export default function QuickView({
             View Full Details
           </Link>
           
-          {/* 修改这里：绑定 onClick 事件 */}
           <button 
             onClick={handleAddToCart}
             className="w-full bg-brand-black text-brand-white py-4 text-[10px] uppercase tracking-[0.2em] hover:bg-brand-black/90 transition-colors"

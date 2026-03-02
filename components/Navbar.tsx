@@ -1,41 +1,25 @@
-"use client"; // 必须添加，因为使用了 Hook 和交互
+"use client";
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCart } from "./CartContext";
-import { supabase } from '@/lib/supabase'; // 引入 supabase 客户端
+// 【架构师注】引入 Zustand 引擎和 supabase
+import { useCartStore } from '../src/stores/useCartStore';
+import { supabase } from '@/lib/supabase';
 
 export default function Navbar({ openCart }: { openCart?: () => void }) {
-  const { cartCount } = useCart();
   const router = useRouter();
 
-  // 1. 新增：存储当前用户信息的状态
-  const [user, setUser] = useState<any>(null);
+  // 【架构师注】核心魔法：直接从 Zustand 获取用户状态和购物车数量。
+  // 不再需要 useEffect 和 useState，代码瞬间清爽。
+  const user = useCartStore((state) => state.user);
+  const cartCount = useCartStore((state) => 
+    state.cartItems.reduce((total, item) => total + item.quantity, 0)
+  );
 
-  // 2. 新增：监听用户的登录状态
-  useEffect(() => {
-    // 页面加载时检查一次是否已登录
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user || null);
-    };
-    checkUser();
-
-    // 实时监听登录/登出事件
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
-    });
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  // 3. 新增：登出功能
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    router.push('/login'); // 登出后自动跳回登录页
+    // 登出后 Zustand 会通过 AuthInit 自动更新状态，这里直接跳转即可
+    router.push('/login'); 
   };
 
   return (
@@ -62,12 +46,12 @@ export default function Navbar({ openCart }: { openCart?: () => void }) {
             <nav className="hidden md:flex items-center space-x-8 text-sm uppercase tracking-widest text-brand-black">
               <Link href="/shop" className="hover:text-gray-500 transition-colors">Shop</Link>
               
-              {/* 4. 新增：用户状态判断区域 */}
+              {/* 用户状态判断区域 */}
               {user ? (
                 <div className="group relative py-2">
                   <span className="cursor-pointer hover:text-gray-500 transition-colors">Account</span>
                   
-                  {/* 悬浮菜单：高级感的淡入滑出 */}
+                  {/* 悬浮菜单 */}
                   <div className="absolute right-1/2 translate-x-1/2 top-full mt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 ease-out z-50">
                     <div className="bg-brand-white border border-brand-line p-5 min-w-[180px] shadow-[0_10px_30px_rgba(74,63,53,0.05)] flex flex-col gap-4 items-center">
                       <span className="text-[10px] text-brand-black/40 tracking-widest lowercase w-full text-center truncate pb-3 border-b border-brand-line">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCart } from "./CartContext";
+import { useCartStore } from '../src/stores/useCartStore';
 
 export default function MiniCart({ 
   isOpen, 
@@ -9,25 +9,36 @@ export default function MiniCart({
   isOpen: boolean; 
   onClose: () => void;
 }) {
-  const { cartItems: cart, removeFromCart, addToCart } = useCart(); // 获提取所有需要的方法 // 獲取操作方法
+  // 1. 性能优化：精准订阅所需状态
+  const cart = useCartStore((state) => state.cartItems);
+  const addToCart = useCartStore((state) => state.addToCart);
+  const removeFromCart = useCartStore((state) => state.removeFromCart);
+  
+  // 【核心修复】引入递减逻辑，而不是直接移除
+  const decreaseQuantity = useCartStore((state) => state.decreaseQuantity); 
+  
+  // 【核心修复】引入水合状态检查，解决 Next.js SSR 报错
+  const isRehydrated = useCartStore((state) => state.isRehydrated);
 
-  // 1. 計算小計
+  // 2. 计算小计 (增强健壮性的价格处理)
   const subtotal = cart.reduce((total, item) => {
-    // 智能判断：如果是字符串就去掉 "RM" 和逗号，如果是数字就直接用
     const priceNum = typeof item.price === 'string' 
       ? parseFloat(item.price.replace(/[^\d.]/g, '')) 
       : Number(item.price);
-      
     return total + (priceNum * item.quantity);
   }, 0);
 
-  // 2. 免運費邏輯（假設滿 RM 2,000 免運）
+  // 3. 免运费逻辑
   const freeShippingThreshold = 2000;
   const shippingProgress = Math.min((subtotal / freeShippingThreshold) * 100, 100);
   const remainingForFreeShipping = freeShippingThreshold - subtotal;
 
+  // 【水合守卫】如果本地存储尚未同步到 React 状态，返回 null 避免 UI 闪烁
+  if (!isRehydrated) return null;
+
   return (
     <>
+      {/* 遮罩层 */}
       <div 
         className={`fixed inset-0 bg-brand-black/20 backdrop-blur-sm z-[60] transition-all duration-700 ${
           isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -35,12 +46,13 @@ export default function MiniCart({
         onClick={onClose}
       />
 
+      {/* 侧边面板 */}
       <div 
         className={`fixed top-0 right-0 h-full w-full max-w-md bg-brand-white z-[70] transform transition-transform duration-700 ease-[cubic-bezier(0.33,1,0.68,1)] shadow-2xl flex flex-col ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        {/* 頂部標題 */}
+        {/* 顶部标题 */}
         <div className="flex items-center justify-between px-8 py-6 border-b border-brand-line">
           <h2 className="text-[11px] font-bold tracking-[0.2em] uppercase text-brand-black">
             Your Bag ({cart.length})
@@ -48,7 +60,7 @@ export default function MiniCart({
           <button onClick={onClose} className="text-brand-black/40 hover:text-brand-black transition-colors text-2xl font-light">×</button>
         </div>
 
-        {/* 3. 優化點：免運費進度條 */}
+        {/* 免运费进阶条 */}
         {cart.length > 0 && (
           <div className="px-8 py-4 bg-brand-gray/50 border-b border-brand-line">
             <p className="text-[9px] uppercase tracking-widest text-brand-black/60 mb-2">
@@ -77,7 +89,7 @@ export default function MiniCart({
               <div 
                 key={item.id} 
                 className="flex gap-6 animate-in fade-in slide-in-from-right-8 duration-700"
-                style={{ animationDelay: `${index * 100}ms` }} // 4. 優化點：序列化淡入
+                style={{ animationDelay: `${index * 100}ms` }} 
               >
                 <div className="w-24 h-30 bg-brand-gray overflow-hidden flex-shrink-0">
                   <img src={item.img} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" />
@@ -86,13 +98,29 @@ export default function MiniCart({
                   <div>
                     <div className="flex justify-between items-start mb-1">
                       <h3 className="text-[10px] font-bold tracking-widest uppercase text-brand-black">{item.name}</h3>
-                      <button onClick={() => removeFromCart(item.id)} className="text-[9px] text-brand-black/40 hover:text-brand-black uppercase transition-colors">Remove</button>
+                      <button 
+                        onClick={() => removeFromCart(item.id)} 
+                        className="text-[9px] text-brand-black/40 hover:text-brand-black uppercase transition-colors"
+                      >
+                        Remove
+                      </button>
                     </div>
-                    {/* 5. 優化點：數量控制器 */}
-                    <div className="flex items-center space-x-3 mt-3">
-                       <button onClick={() => removeFromCart(item.id)} className="text-lg font-light text-brand-black/40">-</button>
+
+                    {/* 数量控制器 - 升级版 */}
+                    <div className="flex items-center space-x-4 mt-3">
+                       <button 
+                         onClick={() => decreaseQuantity(item.id)} 
+                         className="text-lg font-light text-brand-black/40 hover:text-brand-black transition-colors"
+                       >
+                         -
+                       </button>
                        <span className="text-[10px] text-brand-black tracking-widest">{item.quantity}</span>
-                       <button onClick={() => addToCart(item)} className="text-lg font-light text-brand-black/40">+</button>
+                       <button 
+                         onClick={() => addToCart(item)} 
+                         className="text-lg font-light text-brand-black/40 hover:text-brand-black transition-colors"
+                       >
+                         +
+                       </button>
                     </div>
                   </div>
                   <p className="text-[11px] tracking-wider text-brand-black font-medium">RM {item.price}</p>
@@ -102,7 +130,7 @@ export default function MiniCart({
           )}
         </div>
 
-        {/* 結帳區 */}
+        {/* 结账区 */}
         {cart.length > 0 && (
           <div className="p-8 border-t border-brand-line bg-brand-white">
             <div className="flex justify-between text-[11px] uppercase tracking-[0.2em] text-brand-black mb-6">
