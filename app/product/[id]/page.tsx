@@ -31,21 +31,22 @@ export default function ProductDetail() {
   const { addToCart } = useCart();
 
   // 【核心逻辑】从 Supabase 动态抓取商品详情
+  // 【核心逻辑】从 Supabase 动态抓取商品详情
   useEffect(() => {
     async function fetchPageData() {
       try {
-        // 1. 获取当前商品详情
+        // 1. 获取当前商品详情 (⚠️ 这里改成大写 Products)
         const { data: currentProduct, error: pError } = await supabase
-          .from('products')
+          .from('Products') 
           .select('*')
           .eq('id', productId)
           .single();
 
         if (pError) throw pError;
 
-        // 2. 获取推荐商品（排除当前商品）
+        // 2. 获取推荐商品（排除当前商品） (⚠️ 这里改成大写 Products)
         const { data: related, error: rError } = await supabase
-          .from('products')
+          .from('Products') 
           .select('*')
           .neq('id', productId)
           .limit(3);
@@ -53,7 +54,6 @@ export default function ProductDetail() {
         if (currentProduct) {
           setProductDetails(currentProduct);
           // 这里的 colors 假设在数据库里存的是 JSONB 数组 ['#4A3F35', ...]
-          // 如果数据库里存的是对象数组，逻辑保持不变
           setSelectedColor(currentProduct.colors ? currentProduct.colors[0] : null);
         }
         if (related) setRelatedProducts(related);

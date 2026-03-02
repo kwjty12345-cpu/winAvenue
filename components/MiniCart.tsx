@@ -9,11 +9,15 @@ export default function MiniCart({
   isOpen: boolean; 
   onClose: () => void;
 }) {
-  const { cart, removeFromCart, addToCart } = useCart(); // 獲取操作方法
+  const { cartItems: cart, removeFromCart, addToCart } = useCart(); // 获提取所有需要的方法 // 獲取操作方法
 
   // 1. 計算小計
   const subtotal = cart.reduce((total, item) => {
-    const priceNum = parseFloat(item.price.replace(/[^\d.]/g, ''));
+    // 智能判断：如果是字符串就去掉 "RM" 和逗号，如果是数字就直接用
+    const priceNum = typeof item.price === 'string' 
+      ? parseFloat(item.price.replace(/[^\d.]/g, '')) 
+      : Number(item.price);
+      
     return total + (priceNum * item.quantity);
   }, 0);
 
