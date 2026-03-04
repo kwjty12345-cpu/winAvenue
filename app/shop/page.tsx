@@ -1,125 +1,126 @@
-"use client";
+// app/shop/page.tsx
+import { ProductCard } from "@/components/ui/product-card";
+import { db } from "@/lib/db";
+import { products, wishlist, categories, brands } from "@/lib/db/schema";
+// 引入 and, inArray, eq, desc, asc 等
+import { desc, asc, eq, and, inArray } from "drizzle-orm"; 
+import { createClient } from "@/lib/supabase/server";
+import { SortSelect } from "@/components/shop/sort-select";
+import { ShopFilters } from "@/components/shop/shop-filters"; 
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-// 【架构师注】使用绝对路径别名 @/，确保组件引用稳健
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import QuickView from "@/components/QuickView";
-import MiniCart from "@/components/MiniCart";
-import { supabase } from '@/lib/supabase';
+export const dynamic = "force-dynamic";
 
-export default function ShopPage() {
-  const [products, setProducts] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
-  const [isViewOpen, setIsViewOpen] = useState(false);
-  const [isCartOpen, setIsCartOpen] = useState(false);
+interface ShopPageProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
 
-  useEffect(() => {
-    async function fetchProducts() {
-      try {
-        // 【关键】确保你的 Supabase 表名大小写一致
-        const { data, error } = await supabase
-          .from('Products') 
-          .select('*');
-        
-        if (error) {
-          console.error('Supabase Error:', error.message);
-          return;
-        }
-        if (data) setProducts(data);
-      } catch (error) {
-        console.error('Fetch Error:', error);
-      } finally {
-        setIsLoading(false);
-      }
+export default async function ShopPage({ searchParams }: ShopPageProps) {
+  const params = await searchParams;
+  
+  const sortParam = params.sort as string | undefined;
+  const categorySlugs = params.category ? (params.category as string).split(',') : [];
+  const brandSlugs = params.brand ? (params.brand as string).split(',') : [];
+
+  const allCategories = await db.select().from(categories);
+  const allBrands = await db.select().from(brands);
+
+  const whereConditions = [];
+
+  // 分类与品牌过滤
+  if (categorySlugs.length > 0) {
+    const matchedCategoryIds = allCategories.filter(c => categorySlugs.includes(c.slug)).map(c => c.id);
+    if (matchedCategoryIds.length > 0) {
+      whereConditions.push(inArray(products.categoryId, matchedCategoryIds));
+    } else {
+      whereConditions.push(eq(products.id, '00000000-0000-0000-0000-000000000000')); 
     }
-    fetchProducts();
-  }, []);
+  }
 
-  const openQuickView = (product: any) => {
-    setSelectedProduct(product);
-    setIsViewOpen(true);
-  };
+  if (brandSlugs.length > 0) {
+    const matchedBrandIds = allBrands.filter(b => brandSlugs.includes(b.slug)).map(b => b.id);
+    if (matchedBrandIds.length > 0) {
+      whereConditions.push(inArray(products.brandId, matchedBrandIds));
+    } else {
+      whereConditions.push(eq(products.id, '00000000-0000-0000-0000-000000000000')); 
+    }
+  }
+
+  // ✅ 核心修改：将特定 Sort 参数转化为 Where 过滤条件
+  if (sortParam === "badge_new_in") whereConditions.push(eq(products.badge, "NEW IN"));
+  if (sortParam === "badge_limited") whereConditions.push(eq(products.badge, "LIMITED"));
+  if (sortParam === "badge_best_seller") whereConditions.push(eq(products.badge, "BEST SELLER"));
+
+  // 排序规则 (如果是 badge，这里会默认走 desc(createdAt)，保持最新上架在前面)
+  let orderClause = [desc(products.createdAt)];
+  if (sortParam === "price_asc") orderClause = [asc(products.price)];
+  if (sortParam === "price_desc") orderClause = [desc(products.price)];
+
+  const finalWhere = whereConditions.length > 0 ? and(...whereConditions) : undefined;
+  
+  const realProducts = await db.query.products.findMany({
+    where: finalWhere,
+    orderBy: orderClause,
+    with: { brand: true, category: true },
+  });
+
+  // 鉴权与收藏状态
+  let userWishlistSlugs: string[] = [];
+  let currentUserId: string | undefined = undefined;
+  
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      currentUserId = user.id;
+      const userWishlist = await db.query.wishlist.findMany({
+        where: eq(wishlist.userId, user.id),
+        columns: { productSlug: true },
+      });
+      userWishlistSlugs = userWishlist.map((w) => w.productSlug);
+    }
+  } catch (e) {
+    console.error(e);
+  }
 
   return (
-    <div className="min-h-screen bg-[#F9F8F4] flex flex-col">
-      {/* Navbar 现在的内部已经适配了 Zustand，不再依赖 Context */}
-      <Navbar openCart={() => setIsCartOpen(true)} />
+    <div className="flex flex-col w-full min-h-screen pt-32 pb-24 bg-brand-bg">
+      <div className="container mx-auto px-6 md:px-12">
+        
+        <div className="flex flex-col items-center justify-center text-center mb-12 gap-4">
+          <h1 className="text-[var(--text-fluid-h2)] font-serif tracking-widest uppercase text-brand-primary">
+            Shop All Bags
+          </h1>
+          <p className="text-xs tracking-widest text-neutral-500 uppercase">
+            Discover our complete collection
+          </p>
+        </div>
 
-      <div className="pt-16 pb-12 text-center px-4">
-        <h1 className="text-3xl font-medium tracking-widest text-[#333333] uppercase mb-4">
-          Shop All Bags
-        </h1>
-        <p className="text-xs tracking-[0.1em] text-[#6A7B8C] max-w-xl mx-auto leading-relaxed">
-          Explore our complete collection. Crafted with uncompromising attention to detail.
-        </p>
-      </div>
+        <div className="flex flex-col md:flex-row items-center justify-between py-5 border-y border-neutral-200/60 mb-12 gap-4">
+          <ShopFilters categories={allCategories} brands={allBrands} />
+          <span className="hidden md:block text-[10px] tracking-widest text-neutral-400 uppercase">
+            {realProducts.length} Items
+          </span>
+          <SortSelect currentSort={sortParam} />
+        </div>
 
-      <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full mb-32">
-        {isLoading ? (
-          <div className="py-20 text-center text-xs tracking-widest uppercase text-brand-black/40">
-            Loading Luxury...
+        {realProducts.length === 0 ? (
+          <div className="py-32 text-center text-zinc-500 tracking-widest uppercase text-sm">
+            No products match your current filters.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 border-t border-b border-[#DCD7C9] divide-y lg:divide-y-0 lg:divide-x divide-[#DCD7C9]">
-            {products.map((product) => (
-              <div key={product.id} className="group relative flex flex-col items-center p-8 bg-[#F9F8F4] hover:bg-white transition-colors duration-500">
-                {product.tag && (
-                  <div className="absolute top-4 left-4 z-20 bg-[#F9F8F4] px-2 py-1 border border-[#DCD7C9]">
-                    <span className="text-[9px] uppercase tracking-widest text-[#6A7B8C] font-medium">
-                      {product.tag}
-                    </span>
-                  </div>
-                )}
-
-                <div className="relative w-full aspect-[4/5] overflow-hidden mb-6 mix-blend-multiply group-hover:mix-blend-normal transition-all duration-500">
-                  <Link href={`/product/${product.id}`}>
-                    <img 
-                      src={product.img} 
-                      alt={product.name}
-                      className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-[1.5s] ease-out"
-                    />
-                  </Link>
-
-                  <div className="absolute inset-x-0 bottom-0 p-4 translate-y-full opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
-                    <button 
-                      onClick={() => openQuickView(product)} 
-                      className="w-full bg-white/90 backdrop-blur-sm py-3 text-[10px] uppercase tracking-widest border border-[#DCD7C9] text-[#333333] hover:bg-black hover:text-white transition-all"
-                    >
-                      Quick View
-                    </button>
-                  </div>
-                </div>
-
-                <div className="w-full text-center">
-                  <h3 className="text-sm tracking-widest text-[#333333] font-medium mb-3">
-                    {product.name}
-                  </h3>
-                  <p className="text-xs text-[#7C8960] tracking-widest font-medium">
-                    RM {product.price}
-                  </p>
-                </div>
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-16">
+            {realProducts.map((product) => (
+              <ProductCard 
+                key={product.slug} 
+                product={product} 
+                userId={currentUserId}
+                initialFavorited={userWishlistSlugs.includes(product.slug)} 
+              />
             ))}
           </div>
         )}
-      </main>
 
-      <Footer />
-
-      {/* 确保这些组件内部引用的都是 useCartStore */}
-      <QuickView 
-        isOpen={isViewOpen} 
-        onClose={() => setIsViewOpen(false)} 
-        product={selectedProduct} 
-      />
-
-      <MiniCart 
-        isOpen={isCartOpen} 
-        onClose={() => setIsCartOpen(false)} 
-      />
+      </div>
     </div>
   );
 }

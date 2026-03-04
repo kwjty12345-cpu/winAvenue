@@ -1,50 +1,58 @@
 @import "tailwindcss";
 
 @theme {
-  /* 核心色调改为：奶油、燕麦、摩卡深咖的暖色系 */
-  --color-brand-black: #4A3F35; /* 摩卡深褐色，替代刺眼的纯黑，高级且温柔 */
-  --color-brand-white: #FCFAF8; /* 奶油珍珠白，替代冷调纯白，自带温馨感 */
-  --color-brand-gray: #F4EFEA;  /* 温暖的燕麦奶茶色，做背景极度舒适 */
-  --color-brand-line: #EAE3DC;  /* 暖调的浅褐色线条，不突兀 */
+  /* 🎨 原有色彩体系：微调加深主色调与次色调，增加对比度 */
+  --color-brand-primary: #121212;   /* 比原来更深一点，提升锐度 */
+  --color-brand-secondary: #7A6A58; /* 加深暖石色 */
+  --color-brand-bg: #F4F3EF;        
+  --color-brand-surface: #EAE8E3;   
 
-  /* 保持宽字母间距，留住大气感 */
-  --tracking-widest: 0.15em;
+  /* 🌟 [新增] 轻奢专属色彩体系 (Light Luxury Palette) */
+  --color-brand-luxury-charcoal: #333333;      /* 炭灰色：用于高级感文字与按钮 */
+  --color-brand-luxury-gold-start: #EFC37A;    /* 拉丝金起点：用于渐变与边框 */
+  --color-brand-luxury-gold-end: #D9A354;      /* 拉丝金终点：用于渐变与边框 */
+  
+  /* 📐 流式排版：全面提升基础字号 */
+  --text-fluid-h1: clamp(2.5rem, 5vw + 1rem, 4.5rem); 
+  --text-fluid-h2: clamp(1.8rem, 3vw + 1rem, 3rem);   
+  --text-fluid-body: clamp(0.95rem, 1vw + 0.5rem, 1.125rem); 
+  
+  /* 🔤 字体家族 */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-playfair), ui-serif, Georgia, serif;
+
+  /* 💧 [新增] 极微小的高斯模糊值，配合毛玻璃效果使用 */
+  --blur-xs: 2px;
 }
 
-/* --- 全局按钮悬浮动效升级 --- */
-
-/* 1. 基础平滑过渡：应用于全站所有按钮、链接 */
-button, 
-a.inline-block, 
-.btn-hover-effect {
-  transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1) !important;
-  position: relative;
-  overflow: hidden;
+/* 在 base 层保留平滑滚动 */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-brand-bg text-brand-primary font-sans overflow-x-hidden;
+  }
 }
 
-/* 2. 悬浮状态：轻微浮起与柔和阴影 */
-button:hover, 
-a.inline-block:hover {
-  transform: translateY(-2px); 
-  filter: brightness(1.05); /* 轻轻亮起，不刺眼 */
-  box-shadow: 0 10px 25px rgba(74, 63, 53, 0.12); /* 使用你的 brand-black 色调阴影 */
-}
+/* 🔧 [新增] 全局功能类 (Utilities) */
+@layer utilities {
+  /* 极致拉丝金边框混合效果：专门用于 Quick View 悬浮按钮 */
+  .border-image-linear-gradient {
+    border: 1.5px solid transparent;
+    /* 使用 linear-gradient 作为 border-image，调用 @theme 中定义的金色变量 */
+    border-image: linear-gradient(
+      135deg, 
+      var(--color-brand-luxury-gold-start) 0%, 
+      var(--color-brand-luxury-gold-end) 50%, 
+      var(--color-brand-luxury-gold-start) 100%
+    ) 1;
+    /* 配合 Backdrop Blur 的过渡动画 */
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
 
-/* 3. 点击反馈：模拟真实物理按压 */
-button:active, 
-a.inline-block:active {
-  transform: translateY(0) scale(0.97); /* 按下时微缩 */
-  transition: all 0.1s ease !important; /* 点击反馈速度加快 */
-}
-
-/* 4. 图片容器悬浮放大：让商品展示更高级 */
-.group:hover img {
-  transform: scale(1.05);
-  transition: transform 1.5s cubic-bezier(0.25, 1, 0.5, 1) !important;
-}
-
-/* 5. 颜色圆点专属效果 */
-div.rounded-full.border:hover {
-  transform: scale(1.25);
-  box-shadow: 0 4px 10px rgba(74, 63, 53, 0.1);
+  /* 可选：如果你需要背景图层叠效果（用于商品卡片的复杂纹理背景） */
+  .bg-blend-soft-light {
+    background-blend-mode: soft-light;
+  }
 }
