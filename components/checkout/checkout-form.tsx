@@ -4,85 +4,167 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store/use-cart-store";
 import { processCheckoutAction } from "@/app/actions/checkout";
-import { CheckoutFormData } from "@/lib/validations/checkout";
+import { checkoutSchema, CheckoutFormData } from "@/lib/validations/checkout";
 import { Loader2 } from "lucide-react";
+// 🚀 新增验证与微交互依赖
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { motion, AnimatePresence } from "framer-motion";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+// 架构师工具箱：样式合并函数
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 
 export function CheckoutForm() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const { items, clearCart } = useCartStore(); // 从全局状态提取购物车
-  const [error, setError] = useState("");
+  const { items, clearCart } = useCartStore(); 
+  const [globalError, setGlobalError] = useState("");
 
   const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError("");
+  // 🚀 1. 引擎初始化：Zod 规则强力接管前端 UI
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<CheckoutFormData>({
+    resolver: zodResolver(checkoutSchema),
+    mode: "onBlur", // 失去焦点立即校验
+  });
+
+  // 🚀 2. 类型安全的提交处理
+  const onSubmit = async (data: CheckoutFormData) => {
+    setGlobalError("");
 
     if (items.length === 0) {
-      setError("Your cart is empty.");
+      setGlobalError("Your cart is empty.");
       return;
     }
 
-    const formData = new FormData(e.currentTarget);
-    const addressData: CheckoutFormData = {
-      receiverName: formData.get("receiverName") as string,
-      phoneNumber: formData.get("phoneNumber") as string,
-      addressLine1: formData.get("addressLine1") as string,
-      addressLine2: formData.get("addressLine2") as string,
-      city: formData.get("city") as string,
-      state: formData.get("state") as string,
-      postalCode: formData.get("postalCode") as string,
-    };
-
-    // 格式化发给后端的购物车数据
     const cartPayload = items.map(item => ({
       id: item.id,
-      name: item.name,           // ✅ 新增：把商品名称传给后端
-      imageUrl: item.imageUrl,   // ✅ 新增：把图片传给后端
+      name: item.name,          
+      imageUrl: item.imageUrl,  
       price: item.price,
       quantity: item.quantity
     }));
 
     startTransition(async () => {
-      const result = await processCheckoutAction(addressData, cartPayload);
+      // 此时的 data 已经被 Zod 完美洗净
+      const result = await processCheckoutAction(data, cartPayload);
       
-      if (result.success) {
-        clearCart(); // 交易成功，清空本地购物车
-        // 跳转到成功页 (或者你的订单详情页)
-        router.push(`/account/orders?success=${result.orderNumber}`); 
+      if (result.success && result.paymentUrl) {
+        // 🚀 核心修复：必须跳转到 Billplz 的支付网关！
+        clearCart(); 
+        window.location.href = result.paymentUrl; 
       } else {
-        setError(result.error || "An error occurred during checkout.");
+        setGlobalError(result.error || "An error occurred during checkout.");
         if (result.error === "Unauthorized") router.push("/login");
       }
     });
   };
 
+  // 辅助组件：渲染具有物理阻尼感的错误提示
+  const ErrorMessage = ({ message }: { message?: string }) => (
+    <AnimatePresence mode="wait">
+      {message && (
+        <motion.p
+          initial={{ opacity: 0, y: -5, height: 0 }}
+          animate={{ opacity: 1, y: 0, height: "auto" }}
+          exit={{ opacity: 0, y: -5, height: 0 }}
+          transition={{ duration: 0.2, type: "spring", stiffness: 200, damping: 20 }}
+          className="text-red-500 text-xs font-medium pt-2 tracking-wide"
+        >
+          {message}
+        </motion.p>
+      )}
+    </AnimatePresence>
+  );
+
+  // 提取输入框基础样式以保持极简美学 (Luxe Vibe)
+  const inputBaseClass = "w-full border-b py-3 text-sm focus:outline-none transition-colors bg-transparent placeholder:text-zinc-400";
+
   return (
     <div className="flex flex-col lg:flex-row gap-12">
-      {/* 表单区 */}
+      {/* 🧾 表单区 */}
       <div className="w-full lg:w-2/3">
         <h2 className="text-sm font-bold tracking-[0.2em] uppercase mb-8 border-b pb-4">Shipping Details</h2>
         
-        <form id="checkout-form" onSubmit={handleSubmit} className="space-y-6">
+        <form id="checkout-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid grid-cols-2 gap-6">
-            <input name="receiverName" required placeholder="Full Name *" className="w-full border-b border-zinc-300 py-3 text-sm focus:outline-none focus:border-black transition-colors bg-transparent placeholder:text-zinc-400" />
-            <input name="phoneNumber" required placeholder="Phone Number *" className="w-full border-b border-zinc-300 py-3 text-sm focus:outline-none focus:border-black transition-colors bg-transparent placeholder:text-zinc-400" />
+            <div>
+              <input 
+                {...register("receiverName")} 
+                placeholder="Full Name *" 
+                className={cn(inputBaseClass, errors.receiverName ? "border-red-500 text-red-600 focus:border-red-600" : "border-zinc-300 focus:border-black")} 
+              />
+              <ErrorMessage message={errors.receiverName?.message} />
+            </div>
+            <div>
+              <input 
+                {...register("phoneNumber")} 
+                placeholder="Phone Number *" 
+                className={cn(inputBaseClass, errors.phoneNumber ? "border-red-500 text-red-600 focus:border-red-600" : "border-zinc-300 focus:border-black")} 
+              />
+              <ErrorMessage message={errors.phoneNumber?.message} />
+            </div>
           </div>
-          <input name="addressLine1" required placeholder="Address Line 1 *" className="w-full border-b border-zinc-300 py-3 text-sm focus:outline-none focus:border-black transition-colors bg-transparent placeholder:text-zinc-400" />
-          <input name="addressLine2" placeholder="Address Line 2 (Optional)" className="w-full border-b border-zinc-300 py-3 text-sm focus:outline-none focus:border-black transition-colors bg-transparent placeholder:text-zinc-400" />
           
-          <div className="grid grid-cols-3 gap-6">
-            <input name="city" required placeholder="City *" className="w-full border-b border-zinc-300 py-3 text-sm focus:outline-none focus:border-black transition-colors bg-transparent placeholder:text-zinc-400" />
-            <input name="state" required placeholder="State *" className="w-full border-b border-zinc-300 py-3 text-sm focus:outline-none focus:border-black transition-colors bg-transparent placeholder:text-zinc-400" />
-            <input name="postalCode" required placeholder="Postal Code *" className="w-full border-b border-zinc-300 py-3 text-sm focus:outline-none focus:border-black transition-colors bg-transparent placeholder:text-zinc-400" />
+          <div>
+            <input 
+              {...register("addressLine1")} 
+              placeholder="Address Line 1 *" 
+              className={cn(inputBaseClass, errors.addressLine1 ? "border-red-500 text-red-600 focus:border-red-600" : "border-zinc-300 focus:border-black")} 
+            />
+            {/* 当输入类似 "kl" 这种不足 5 个字符的值时，这里会自动丝滑展开警告 */}
+            <ErrorMessage message={errors.addressLine1?.message} />
           </div>
 
-          {error && <p className="text-red-500 text-sm mt-4 tracking-wide">{error}</p>}
+          <div>
+            <input 
+              {...register("addressLine2")} 
+              placeholder="Address Line 2 (Optional)" 
+              className={cn(inputBaseClass, errors.addressLine2 ? "border-red-500 text-red-600 focus:border-red-600" : "border-zinc-300 focus:border-black")} 
+            />
+            <ErrorMessage message={errors.addressLine2?.message} />
+          </div>
+          
+          <div className="grid grid-cols-3 gap-6">
+            <div>
+              <input 
+                {...register("city")} 
+                placeholder="City *" 
+                className={cn(inputBaseClass, errors.city ? "border-red-500 text-red-600 focus:border-red-600" : "border-zinc-300 focus:border-black")} 
+              />
+              <ErrorMessage message={errors.city?.message} />
+            </div>
+            <div>
+              <input 
+                {...register("state")} 
+                placeholder="State *" 
+                className={cn(inputBaseClass, errors.state ? "border-red-500 text-red-600 focus:border-red-600" : "border-zinc-300 focus:border-black")} 
+              />
+              <ErrorMessage message={errors.state?.message} />
+            </div>
+            <div>
+              <input 
+                {...register("postalCode")} 
+                placeholder="Postal Code *" 
+                className={cn(inputBaseClass, errors.postalCode ? "border-red-500 text-red-600 focus:border-red-600" : "border-zinc-300 focus:border-black")} 
+              />
+              <ErrorMessage message={errors.postalCode?.message} />
+            </div>
+          </div>
+
+          {globalError && <p className="text-red-500 text-sm mt-4 tracking-wide font-medium">{globalError}</p>}
         </form>
       </div>
 
-      {/* 订单摘要区 */}
+      {/* 🛍️ 订单摘要区 */}
       <div className="w-full lg:w-1/3 bg-zinc-50 p-8 h-fit">
         <h2 className="text-sm font-bold tracking-[0.2em] uppercase mb-8">Order Summary</h2>
         <div className="space-y-4 mb-8">
@@ -99,7 +181,6 @@ export function CheckoutForm() {
           <span className="text-xl font-serif">RM {total}</span>
         </div>
 
-        {/* 关联外部表单的提交按钮 */}
         <button 
           form="checkout-form"
           type="submit" 

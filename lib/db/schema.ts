@@ -26,6 +26,7 @@ const timestamps = {
 // --- [枚举] 定义订单状态 ---
 export const orderStatusEnum = pgEnum("order_status", [
   "pending", 
+  "paid",
   "processing", 
   "shipped", 
   "delivered", 
@@ -103,6 +104,12 @@ export const addresses = pgTable("addresses", {
   ...timestamps,
 }, (table) => ({
   userAddressIdx: index("address_user_idx").on(table.userId),
+  // 🚀 核心修复：必须添加此联合唯一约束，完美对齐 Action 中的 target 数组
+  addressUniqueIdx: uniqueIndex("user_address_postal_unq").on(
+    table.userId, 
+    table.addressLine1, 
+    table.postalCode
+  ),
 }));
 
 // 订单表 (Orders)
@@ -181,3 +188,13 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
     references: [orders.id],
   }),
 }));
+
+export const payments = pgTable("payments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orderId: uuid("order_id").notNull(), // 必须关联你现有的 orders 表的 ID
+  billplzBillId: varchar("billplz_bill_id", { length: 255 }).unique(), 
+  amount: integer("amount").notNull(), 
+  status: varchar("status", { length: 50 }).notNull().default("pending"), 
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
