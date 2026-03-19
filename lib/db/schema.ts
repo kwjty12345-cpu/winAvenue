@@ -172,13 +172,19 @@ export const addressesRelations = relations(addresses, ({ many }) => ({
   orders: many(orders),
 }));
 
-// ✅ 修改：为 orders 表增加 items 关联，支持查询订单时直接带出其下的所有商品明细
+// 🚨 核心修复 3：你必须更新现有的 ordersRelations！
+// 将你现有的 ordersRelations 替换为以下代码，使其能关联到 payments
 export const ordersRelations = relations(orders, ({ one, many }) => ({
   address: one(addresses, {
     fields: [orders.addressId],
     references: [addresses.id],
   }),
   items: many(orderItems), 
+  // 新增：允许通过 db.query.orders 查询时直接带出 payment 状态
+  payment: one(payments, {
+    fields: [orders.id],
+    references: [payments.orderId]
+  })
 }));
 
 // ✅ 新增：定义 orderItems 属于哪个 order
@@ -189,12 +195,31 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
   }),
 }));
 
+// --- [4. 支付状态表] ---
+
 export const payments = pgTable("payments", {
   id: uuid("id").primaryKey().defaultRandom(),
-  orderId: uuid("order_id").notNull(), // 必须关联你现有的 orders 表的 ID
+  // 🚨 核心修复 1：显式声明物理外键与级联策略
+  orderId: uuid("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }), 
   billplzBillId: varchar("billplz_bill_id", { length: 255 }).unique(), 
+  
+  // 架构师注：Billplz 的 API 要求金额单位必须是“仙 (Sen/Cents)”，而非令吉 (RM)。
+  // 例如 RM 150.00 在数据库和 API 中必须存储为 15000。使用 integer 是完全正确的。
   amount: integer("amount").notNull(), 
+  
   status: varchar("status", { length: 50 }).notNull().default("pending"), 
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  
+  // 🚨 核心修复 2：对齐全局时区设定
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// --- [5. 支付 ORM 关联关系] ---
+
+// 告知 Drizzle：一条 Payment 属于一个 Order
+export const paymentsRelations = relations(payments, ({ one }) => ({
+  order: one(orders, {
+    fields: [payments.orderId],
+    references: [orders.id],
+  }),
+}));

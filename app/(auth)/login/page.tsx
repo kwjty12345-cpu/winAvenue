@@ -1,127 +1,111 @@
 // app/(auth)/login/page.tsx
-import Image from "next/image";
-import Link from "next/link";
-import { login, signup } from "./actions"; 
+"use client";
 
-export default async function LoginPage({
-  searchParams,
-}: {
-  // 适配 Next.js 15+ 异步参数解构
-  searchParams: Promise<{ message?: string; error?: string }>;
-}) {
-  const { message, error } = await searchParams;
+import { useState } from "react";
+import Image from "next/image";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+
+export default function LoginPage() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const router = useRouter();
+  
+  // 实例化 Supabase 客户端
+  const supabase = createClient();
+
+  // ⚡️ 核心策略：Google OAuth 一键登录
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    setMessage(""); // 清除可能存在的历史错误信息
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        // 登录成功后重定向到回调路由
+        redirectTo: `${location.origin}/auth/callback`, 
+      },
+    });
+
+    if (error) {
+      setMessage("Failed to initialize Google login. Please try again.");
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <div className="flex min-h-screen w-full bg-[#F7F6F2]">
-      {/* 视觉左翼：保持不变的高定画报 */}
-      <div className="hidden lg:flex w-1/2 relative bg-neutral-900 overflow-hidden">
+    <main className="flex min-h-screen w-full">
+      {/* 左侧：品牌视觉传达 */}
+      <div className="relative hidden w-1/2 lg:block bg-neutral-100">
         <Image
-          src="https://images.unsplash.com/photo-1590874103328-eac38a683ce7?q=80&w=1500&auto=format&fit=crop"
-          alt="Luxe Paradise Atelier"
+          src="https://images.unsplash.com/photo-1584916201218-f4242ceb4809?q=80&w=2000&auto=format&fit=crop"
+          alt="Luxe Paradise Collection"
           fill
           priority
-          className="object-cover opacity-90 scale-105 transition-transform duration-[10s] hover:scale-100"
+          className="object-cover object-center"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" /> 
-        <div className="absolute inset-0 flex flex-col justify-end p-20 text-white">
-          <h2 className="text-4xl font-serif tracking-[0.2em] uppercase mb-4">
+        <div className="absolute inset-0 z-10 bg-black/40"></div>
+        <div className="absolute bottom-20 left-16 z-20 text-white">
+          <h1 className="mb-4 font-serif text-4xl tracking-widest uppercase">
             Enter The Paradise
-          </h2>
-          <p className="text-sm font-light tracking-widest uppercase text-white/80 max-w-md leading-relaxed">
-            Curated elegance for the modern individual. Sign in to access your exclusive collection.
+          </h1>
+          <p className="max-w-md text-sm font-light leading-relaxed tracking-wider opacity-80">
+            Curated elegance for the modern individual. Sign in to access your exclusive collection and track your orders.
           </p>
         </div>
       </div>
 
-      {/* 交互右翼：极简表单区 */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-16">
-        <div className="w-full max-w-md flex flex-col gap-10">
+      {/* 右侧：极简交互控制台 */}
+      <div className="flex w-full flex-col items-center justify-center bg-[#FCFCFA] px-8 lg:w-1/2">
+        <div className="w-full max-w-md space-y-12">
           
-          <div className="text-center lg:text-left space-y-4">
-            <Link href="/" className="inline-block text-xl font-serif tracking-[0.2em] uppercase text-[#7A6A58] mb-6 hover:opacity-70 transition-opacity">
-              Luxe Paradise
-            </Link>
-            <h1 className="text-3xl font-serif text-[#121212] tracking-widest uppercase leading-tight">
+          <div className="space-y-4 text-center">
+            <h2 className="font-serif text-3xl tracking-[0.2em] uppercase text-black">
               Welcome
-            </h1>
-            <p className="text-[10px] text-neutral-500 tracking-[0.2em] uppercase">
-              Sign in or create an account
+            </h2>
+            <p className="text-xs tracking-widest text-neutral-500 uppercase">
+              Sign in to your account
             </p>
           </div>
 
-          <form className="flex flex-col gap-8 w-full">
-            {/* ✨ 状态反馈模块：优雅地显示错误或成功信息 */}
-            <div className="min-h-[60px] flex flex-col justify-center">
-              {error && (
-                <div className="bg-red-50/50 border border-red-100 p-4 animate-in fade-in slide-in-from-top-1">
-                  <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-red-600 leading-relaxed">
-                    {error}
-                  </p>
-                </div>
+          <div className="space-y-6">
+            {/* 唯一入口：Google OAuth 按钮 */}
+            <button
+              onClick={handleGoogleLogin}
+              disabled={isLoading}
+              className="flex w-full items-center justify-center space-x-3 border border-neutral-300 bg-white py-4 text-sm font-medium tracking-wider text-black transition-all hover:bg-neutral-50 hover:border-black disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? (
+                <span className="text-xs tracking-widest animate-pulse">CONNECTING...</span>
+              ) : (
+                <>
+                  <svg className="h-5 w-5" viewBox="0 0 24 24">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                  </svg>
+                  <span>CONTINUE WITH GOOGLE</span>
+                </>
               )}
-              {message && (
-                <div className="bg-emerald-50/50 border border-emerald-100 p-4 animate-in fade-in slide-in-from-top-1">
-                  <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-emerald-700 leading-relaxed">
-                    {message}
-                  </p>
-                </div>
-              )}
-            </div>
+            </button>
 
-            <div className="flex flex-col gap-6">
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] tracking-[0.2em] uppercase font-bold text-[#7A6A58]" htmlFor="email">
-                  Email
-                </label>
-                <input
-                  className="bg-transparent border-b border-neutral-300 py-3 text-sm text-[#121212] focus:outline-none focus:border-[#7A6A58] transition-colors placeholder:text-neutral-300"
-                  name="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  required
-                />
-              </div>
-              <div className="flex flex-col gap-2 relative group">
-                <label className="text-[10px] tracking-[0.2em] uppercase font-bold text-[#7A6A58]" htmlFor="password">
-                  Password
-                </label>
-                <input
-                  className="bg-transparent border-b border-neutral-300 py-3 text-sm text-[#121212] focus:outline-none focus:border-[#7A6A58] transition-colors placeholder:text-neutral-300"
-                  name="password"
-                  type="password"
-                  placeholder="••••••••"
-                  minLength={6} // 增加最少长度限制，符合 Supabase 默认安全策略
-                  required
-                />
-              </div>
-            </div>
+            {/* 状态信息反馈 (保留，用于展示网络断开或配置错误) */}
+            {message && (
+              <p className="text-center text-xs tracking-wider text-red-500">
+                {message}
+              </p>
+            )}
+          </div>
 
-            <div className="flex flex-col gap-4 mt-2">
-              {/* 架构师注：按钮使用 formAction 挂载异步 Action */}
-              <button
-                formAction={login}
-                className="w-full bg-[#121212] text-white py-4 text-[10px] font-bold tracking-[0.25em] uppercase hover:bg-neutral-800 transition-all duration-300 active:scale-[0.98] shadow-sm"
-              >
-                Sign In
-              </button>
-              
-              <button
-                formAction={signup}
-                className="w-full bg-transparent border border-neutral-300 text-[#121212] py-4 text-[10px] font-bold tracking-[0.25em] uppercase hover:bg-white transition-all duration-300 active:scale-[0.98]"
-              >
-                Create Account
-              </button>
-            </div>
-
-            <div className="mt-4 text-center">
-              <Link href="/forgot-password" className="text-[9px] tracking-[0.2em] uppercase text-neutral-400 hover:text-[#7A6A58] transition-colors">
-                Forgot your password?
-              </Link>
-            </div>
-          </form>
+          <div className="text-center">
+             <button onClick={() => router.push('/')} className="text-[10px] tracking-widest text-neutral-400 uppercase hover:text-black transition-colors border-b border-transparent hover:border-black pb-1">
+               ← Return to Store
+             </button>
+          </div>
 
         </div>
       </div>
-    </div>
+    </main>
   );
 }

@@ -1,6 +1,6 @@
 // app/admin/page.tsx
 import { db } from "@/lib/db";
-import { orders, products } from "@/lib/db/schema"; // ✅ 新增：引入 products 表
+import { orders, products } from "@/lib/db/schema"; 
 import { desc } from "drizzle-orm";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -12,10 +12,17 @@ export default async function AdminPage() {
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
 
+  // 1. 拦截未登录游客
   if (error || !user) redirect("/login");
 
-  const ADMIN_EMAIL = "kwjty12345@gmail.com"; // 你的专属主理人邮箱
-  if (user.email !== ADMIN_EMAIL) redirect("/");
+  // ⚡️ 架构师手法：从安全的环境变量中读取主理人邮箱
+  const adminEmail = process.env.ADMIN_EMAIL;
+  
+  // 2. 拦截非管理员越权访问
+  if (user.email !== adminEmail) {
+    console.warn(`🚨 越权访问拦截: ${user.email} 试图访问 Admin Dashboard`);
+    redirect("/");
+  }
 
   const allCategories = await db.query.categories.findMany();
   const allBrands = await db.query.brands.findMany();

@@ -78,10 +78,10 @@ export function ProductCard({
           />
         )}
 
-        {/* 轻奢化标签 */}
+        {/* 🚨 架构师修改：高对比度显眼标签，抛弃透明与圆角 */}
         {product.badge && (
-          <div className="absolute top-4 left-4 bg-white/85 backdrop-blur-md border border-white/50 px-3 py-1.5 z-20 pointer-events-none">
-            <span className="text-[10px] tracking-[0.2em] uppercase font-bold text-[#7A6A58]">
+          <div className="absolute top-4 left-4 bg-[#09090b] px-3 py-1 z-20 pointer-events-none shadow-md">
+            <span className="text-[11px] tracking-[0.15em] uppercase font-bold text-white">
               {product.badge}
             </span>
           </div>
@@ -116,9 +116,12 @@ export function ProductCard({
         <h3 className="text-[11px] tracking-[0.15em] uppercase font-medium text-[#7A6A58]">
           {product.brand?.name || "Luxury Collection"}
         </h3>
-        <p className="text-sm tracking-wide text-[#1A1A1A] font-serif italic">
+        
+        {/* 🚨 架构师修改：移除 font-serif 和 italic，使用默认的无衬线体，并增加 font-medium 提升辨识度 */}
+        <p className="text-sm tracking-wide text-[#1A1A1A] font-medium">
           {product.name}
         </p>
+        
         <p className="text-sm mt-1 font-light text-[#555]">RM {product.price}</p>
       </Link>
     </div>

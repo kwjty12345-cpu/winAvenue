@@ -3,119 +3,94 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation"; 
 import { cn } from "@/lib/utils"; 
 import { useCartStore } from "@/lib/store/use-cart-store"; 
-import { createClient } from "@/lib/supabase/client"; 
-import { SearchModal } from "@/components/layout/search-modal"; // ✅ 1. 引入搜索舱组件
+import { SearchModal } from "@/components/layout/search-modal";
 
-export const Header = () => {
+// 🚨 架构师修改：接收来自 layout 的 isAdmin prop
+export const Header = ({ isAdmin = false }: { isAdmin?: boolean }) => {
   const [isScrolled, setIsScrolled] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false); 
-  const [isSearchOpen, setIsSearchOpen] = useState(false); // ✅ 2. 新增：控制搜索舱的开关状态
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   
-  // 订阅 Zustand 购物车状态机
+  const pathname = usePathname(); 
   const { items, openCart } = useCartStore();
-  
-  // 计算购物车内的总商品件数
   const totalItems = items.reduce((acc, item) => acc + item.quantity, 0);
 
-  // 挂载时鉴权：只允许主理人看到 ADMIN 入口
-  useEffect(() => {
-    const checkAdminStatus = async () => {
-      try {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        // 🚨 你的专属邮箱防线
-        if (user && user.email === "kwjty12345@gmail.com") {
-          setIsAdmin(true);
-        }
-      } catch (error) {
-        console.error("Admin check failed", error);
-      }
-    };
-    checkAdminStatus();
-  }, []);
+  // 🗑️ 删除了原本这里的 useEffect (checkAdminStatus) 逻辑，因为服务端已经做好了
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
-    };
-    
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
     handleScroll(); 
-    
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // ✅ 3. 使用 <></> (Fragment) 将 Header 和 Modal 包裹在一起
+  const isTransparentMode = pathname === "/" && !isScrolled;
+  const textColorClass = isTransparentMode ? "text-white" : "text-brand-primary";
+  const hoverColorClass = isTransparentMode ? "hover:text-neutral-300" : "hover:text-brand-secondary";
+
   return (
     <>
       <header
         className={cn(
           "fixed top-0 inset-x-0 z-50 w-full transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)]",
           isScrolled 
-            ? "h-16 bg-brand-bg/85 backdrop-blur-md border-b border-neutral-200/40 shadow-[0_4px_30px_rgba(0,0,0,0.03)]" 
-            : "h-24 bg-transparent border-b border-transparent"
+            ? "h-16 bg-brand-bg/90 backdrop-blur-md border-b border-neutral-200/40 shadow-sm"
+            : "h-24 bg-transparent border-transparent"
         )}
       >
-        <div className="container mx-auto px-6 md:px-12 h-full flex items-center justify-between">
+        <div className="container flex items-center justify-between h-full px-6 mx-auto md:px-12">
           
-          {/* 左翼 */}
-          <div className="flex-1 flex items-center justify-start">
+          <div className="flex items-center justify-start flex-1">
             <button 
-              onClick={() => setIsSearchOpen(true)} // ✅ 4. 绑定点击事件：打开搜索舱
-              className="text-[10px] md:text-xs tracking-[0.2em] text-brand-primary/80 hover:text-brand-secondary transition-colors duration-300"
+              onClick={() => setIsSearchOpen(true)}
+              className={cn("text-[10px] md:text-xs tracking-[0.2em] transition-colors duration-300", textColorClass, hoverColorClass)}
             >
               SEARCH
             </button>
           </div>
 
-          {/* 中枢 */}
-          <div className="flex-2 flex justify-center">
-            <Link 
-              href="/" 
-              className="text-lg md:text-2xl font-serif font-medium tracking-[0.15em] text-brand-primary"
-            >
+          <div className="flex justify-center flex-2">
+            <Link href="/" className={cn("text-lg md:text-2xl font-serif font-medium tracking-[0.15em] transition-colors duration-300", textColorClass)}>
               LUXE PARADISE
             </Link>
           </div>
 
-          {/* 右翼 */}
-          <div className="flex-1 flex items-center justify-end gap-6 md:gap-8">
+          <div className="flex items-center justify-end flex-1 gap-6 md:gap-8">
             {["SHOP", "ACCOUNT"].map((item) => (
               <Link 
                 key={item} 
-                href={`/${item.toLowerCase()}`}
-                className="hidden md:block text-xs tracking-[0.2em] text-brand-primary/80 hover:text-brand-secondary transition-colors duration-300"
+                href={`/${item.toLowerCase()}`} 
+                className={cn("hidden md:block text-xs tracking-[0.2em] transition-colors duration-300", textColorClass, hoverColorClass)}
               >
                 {item}
               </Link>
             ))}
             
-            {/* 🚨 架构师隐形门：主理人专属入口 */}
+            {/* 这里的 isAdmin 现在是由服务端直接提供的，绝对准确且无延迟 */}
             {isAdmin && (
               <Link 
                 href="/admin"
-                className="hidden md:flex items-center gap-1.5 text-xs tracking-[0.2em] font-bold text-zinc-900 hover:text-brand-secondary transition-colors duration-300"
+                className={cn(
+                  "hidden md:flex items-center gap-1.5 text-xs tracking-[0.2em] font-bold transition-colors duration-300",
+                  textColorClass, hoverColorClass
+                )}
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
                 ADMIN
               </Link>
             )}
 
-            {/* 动态购物车入口：绑定打开抽屉事件，显示实时数量 */}
             <button 
               onClick={openCart}
-              className="text-[10px] md:text-xs tracking-[0.2em] text-brand-primary font-medium hover:text-brand-secondary transition-colors duration-300"
+              className={cn("text-[10px] md:text-xs tracking-[0.2em] font-medium transition-colors duration-300", textColorClass, hoverColorClass)}
             >
               CART ({totalItems})
             </button>
           </div>
-
         </div>
       </header>
-
-      {/* ✅ 5. 挂载隐奢全屏搜索舱在全局的最顶层 */}
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </>
   );
